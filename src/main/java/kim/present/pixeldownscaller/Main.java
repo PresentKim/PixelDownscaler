@@ -1,9 +1,11 @@
 package kim.present.pixeldownscaller;
 
 import com.sksamuel.scrimage.ImmutableImage;
+import com.sksamuel.scrimage.color.RGBColor;
 import com.sksamuel.scrimage.nio.PngWriter;
 import com.sksamuel.scrimage.pixels.Pixel;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
@@ -45,6 +47,7 @@ public class Main {
         try {
             ImmutableImage png = ImmutableImage.loader().fromFile(file);
             png = scaleDown(png);
+            png = removeBackground(png);
             png.output(PngWriter.NoCompression, file);
         } catch (Exception e) {
             System.err.println("Failed to process: " + file + " - " + e.getMessage());
@@ -71,6 +74,42 @@ public class Main {
             }
         }
         return scaleDown(scaled);
+    }
+
+    private static ImmutableImage removeBackground(ImmutableImage png) {
+        Pixel[] backgrounds = new Pixel[]{
+                new Pixel(0, 0, 245, 245, 245, 0),
+                new Pixel(0, 0, 10, 10, 10, 0),
+                new Pixel(0, 0, 10, 245, 10, 0),
+                new Pixel(0, 0, 10, 225, 10, 0),
+        };
+
+        Pixel b = null;
+        Pixel firstPixel = png.pixel(0, 0);
+        Pixel lastPixel = png.pixel(png.width - 1, png.height - 1);
+        for (Pixel background : backgrounds) {
+            if (pixelCompare(firstPixel, background, 20) || pixelCompare(lastPixel, background, 20)) {
+                b = background;
+                break;
+            }
+        }
+
+        if (b == null) {
+            return png;
+        }
+
+        ImmutableImage result = ImmutableImage.create(png.width, png.height, BufferedImage.TYPE_INT_ARGB);
+        for (int x = 0; x < png.width; x++) {
+            for (int y = 0; y < png.height; y++) {
+                Pixel p = png.pixel(x, y);
+                if (pixelCompare(p, b, 20)) {
+                    result.setColor(x, y, new RGBColor(0, 0, 0, 0));
+                } else {
+                    result.setColor(x, y, p.toColor());
+                }
+            }
+        }
+        return result;
     }
 
     private static boolean pixelCompare(Pixel p1, Pixel p2, int tolerance) {
